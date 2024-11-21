@@ -1,0 +1,85 @@
+#Define la version de docker compose en este caso la version 3
+version: '3'
+
+#se declaran los servicios
+services:
+  #implementamos redis como servidor de BD, usado generalmente como chache
+  redis:
+    #declaramos la imagen de redis en su version 5.0.3
+    image: 'redis:5.0.3-alpine'
+    # Exponemos el puerto Redis para conexiones, en este caso el 6379, permite conexiones externas
+    ports:
+      - '6379:6379'
+    # Este comando indica que los datos de redis se guardan en un volumen perssitente, a pesar de si se reinica el contenedorS
+    volumes:
+      - 'redis:/data'
+    # Garantiza que redis se reinicie automaticamente
+    restart: always
+    # Redis opera en la red back-tier, esto para comunicarse con servicios internos
+    networks:
+      - back-tier
+
+#implementamos el servicio de la base de datos
+  db:
+    #Declaramos la imagen de mysql en su version 5.7
+    image: mysql:5.7 
+    # garantiza el reinicio automatico de mysql
+    restart: always
+    #Asigna un nombre fijo al contenedor para identificarlo
+    container_name: db-mysql
+    #se declaran las variables de entorno
+    environment:
+      # se le asigna un nombre a la BD 
+      MYSQL_DATABASE: 'hsbcnet_testing'
+      # Credenciales del usuario MySQL
+      #Se asigna un nombre de usuario
+      MYSQL_USER: 'test'
+      #se asigna una contraseña para ingresar a la BD
+      MYSQL_PASSWORD: '11501112'
+      # Contraseña para el usuario administrador
+      MYSQL_ROOT_PASSWORD: 'root'
+    # Expone el puerto 3306 para conexiones externas
+    ports:
+      - '3306:3306'
+    # Expone el puerto 3306 pero solo para cominicarse entre contenedores
+    expose:
+      - '3306'
+    # Volúmenes para inicar los datos y persistencia
+    volumes:
+      #se usa para inicializar la base de datos con archivos SQL
+      - ./dump:/docker-entrypoint-initdb.d
+    # se usa para conectarse de forma interna con mysql
+    networks:
+      - back-tier
+#Se implemnta el servicio web 
+  web:
+    # se declara la imagen de node.js
+    build: './nodejs'
+    # Variables de entorno para configuración de la aplicación
+    env_file: 
+      - '.env'
+    # Se expone el puerto 80 para conexiones publicas
+    ports:
+      - '80:8000'
+    # Volumen para sincronizar el código fuente
+    volumes:
+      - './nodejs:/app'
+    # Garantiza el reinicio automatico del servicio web
+    restart: always
+    # El servicio depende de Redis y MySQL
+    depends_on:
+      - redis
+      - db
+    # Conecta ambas redes y las pone en comunicacion
+    networks:
+      - front-tier
+      - back-tier
+
+# Volúmenes persistentes
+volumes:
+  redis:
+
+# Definición de redes
+networks:
+  front-tier:
+  back-tier:
